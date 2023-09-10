@@ -4,7 +4,8 @@ import threading
 import io, base64
 import uuid
 import queue, zmq
-from PyQt6.QtWidgets import QApplication, QMainWindow, QLabel, QVBoxLayout, QWidget
+import tempfile
+from PyQt6.QtWidgets import QApplication, QMainWindow, QLabel, QVBoxLayout, QWidget, QLineEdit
 from PyQt6.QtGui import QImage, QPixmap
 from PIL import Image
 from PIL.ImageQt import ImageQt
@@ -28,10 +29,11 @@ class MyApp(QMainWindow):
         super().__init__()
         self.initUI()
         self.initResources()
+        self.current_pil_image = None
 
     def initUI(self):
-        self.setWindowTitle("Socket Server Example")
-        self.setGeometry(100, 100, 1200, 1200)
+        self.setWindowTitle("Dreamer")
+        self.setGeometry(0, 0, 512, 768)
 
         self.central_widget = QWidget(self)
         self.setCentralWidget(self.central_widget)
@@ -42,6 +44,16 @@ class MyApp(QMainWindow):
         self.label = QLabel("Waiting for messages...", self)
         self.layout.addWidget(self.label)
         
+        default_prompt = ""
+        self.prompt_input = QLineEdit(self)
+        self.prompt_input.setPlaceholderText(default_prompt)
+        self.layout.addWidget(self.prompt_input)
+        
+        default_neg_prompt = ""
+        self.neg_prompt_input = QLineEdit(self)
+        self.neg_prompt_input.setPlaceholderText(default_neg_prompt)
+        self.layout.addWidget(self.neg_prompt_input)
+        
         self.picture = QLabel(self)
         self.layout.addWidget(self.picture)
     
@@ -51,7 +63,7 @@ class MyApp(QMainWindow):
         self.server_thread = zmq_thread(self.message_queue)
         self.server_thread.start()
 
-        self.update_timer = self.startTimer(1000)
+        self.update_timer = self.startTimer(500)
         
     def closeEvent(self, event):
         # TODO: Close this all of the way. Thread still runs after GUI closes. Have to kill prompt.
@@ -62,45 +74,47 @@ class MyApp(QMainWindow):
             message = self.message_queue.get_nowait()
             self.update_label(message)
             if message == b'ShowImage':
-                self.sd_request('')
+                self.sd_request(self.prompt_input.text(), self.neg_prompt_input.text())
         except queue.Empty:
             pass
 
     def update_label(self, message):
         self.label.setText(f"Received message: {message}")
         
-    def sd_request(self, prompt):
+    def sd_request(self, prompt, neg_prompt):
         try:
-            control_net = ControlnetRequest(prompt)
-            control_net.build_body()
-            output = control_net.send_request()
+            with tempfile.TemporaryDirectory() as temp_dir:
+                control_net = ControlnetRequest(prompt, neg_prompt)
+                control_net.build_body()
+                output = control_net.send_request()
 
-            result = output['images'][0]
-            
-            # TODO: Find a better way to translate results to QPixmap without saving file
+                result = output['images'][0]
+                
+                # TODO: Find a better way to translate results to QPixmap without saving file
 
-            pil_image = Image.open(io.BytesIO(base64.b64decode(result.split(",", 1)[0])))
-            unique_id = str(uuid.uuid4())
-            pil_image.save(f'{unique_id}.png')
-            # # Convert PIL image to QImage
-            # image = ImageQt(pil_image)
-            # Create a QLabel to display the QImage 
-            self.picture.setPixmap(QPixmap(f'{unique_id}.png'))
+                self.current_pil_image = Image.open(io.BytesIO(base64.b64decode(result.split(",", 1)[0])))
+                unique_id = str(uuid.uuid4())
+                self.current_pil_image.save(f'{temp_dir}/{unique_id}.png')
+                # # Convert PIL image to QImage
+                # image = ImageQt(pil_image)
+                # Create a QLabel to display the QImage 
+                self.picture.setPixmap(QPixmap(f'{temp_dir}/{unique_id}.png'))
             
         except Exception as e:
             print(f"Error: {e}")    
         
         
 class ControlnetRequest:
-    def __init__(self, prompt):
+    def __init__(self, prompt, neg_prompt):
         self.url = "http://localhost:7860/sdapi/v1/txt2img"
         self.prompt = prompt
+        self.neg_prompt = neg_prompt
         self.body = None
 
     def build_body(self):
         self.body = {
             "prompt": self.prompt,
-            "negative_prompt": "",
+            "negative_prompt": self.neg_prompt,
             "batch_size": 1,
             "steps": 15,
             "cfg_scale": 7,
