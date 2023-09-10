@@ -75,6 +75,9 @@ class MyApp(QMainWindow):
             self.update_label(message)
             if message == b'ShowImage':
                 self.sd_request(self.prompt_input.text(), self.neg_prompt_input.text())
+            elif message == b'SaveImage':
+                unique_id = str(uuid.uuid4())
+                self.current_pil_image.save(f'{unique_id}.png')
         except queue.Empty:
             pass
 
