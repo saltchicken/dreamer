@@ -9,6 +9,30 @@ from PyQt6.QtWidgets import QApplication, QMainWindow, QLabel, QVBoxLayout, QWid
 from PyQt6.QtGui import QImage, QPixmap
 from PIL import Image
 from PIL.ImageQt import ImageQt
+
+dark_stylesheet = """
+QWidget {
+    background-color: #222;
+    color: #fff;
+}
+
+QPushButton {
+    background-color: #333;
+    color: #fff;
+    border: 2px solid #555;
+    border-radius: 5px;
+    padding: 5px 10px;
+}
+
+QPushButton:hover {
+    background-color: #444;
+}
+
+QMainWindow {
+    background-color: #222;
+    color: #fff;
+}
+"""
                        
 class zmq_thread(threading.Thread):
     def __init__(self, message_queue):
@@ -56,6 +80,8 @@ class MyApp(QMainWindow):
         
         self.picture = QLabel(self)
         self.layout.addWidget(self.picture)
+        
+        self.setStyleSheet(dark_stylesheet)
     
     def initResources(self):
         self.message_queue = queue.Queue()
