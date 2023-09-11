@@ -118,6 +118,8 @@ class MyApp(QMainWindow):
                 output = control_net.send_request()
 
                 result = output['images'][0]
+                print(f'Parameters: {output["parameters"]}')
+                print(f'Info: {output["info"]}')
                 
                 # TODO: Find a better way to translate results to QPixmap without saving file
 
@@ -150,6 +152,8 @@ class ControlnetRequest:
             "width": 512,
             "height": 768,
             # "seed": 1992241092
+            # "subseed": -1,
+            # "subseed_strength": 0,
         }
 
     def send_request(self):
