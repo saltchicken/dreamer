@@ -9,6 +9,8 @@ from PyQt6.QtWidgets import QApplication, QMainWindow, QLabel, QVBoxLayout, QWid
 from PyQt6.QtGui import QImage, QPixmap
 from PIL import Image
 from PIL.ImageQt import ImageQt
+from PIL.PngImagePlugin import PngInfo
+import json
 
 dark_stylesheet = """
 QWidget {
@@ -54,6 +56,7 @@ class MyApp(QMainWindow):
         self.initUI()
         self.initResources()
         self.current_pil_image = None
+        self.current_info = None
 
     def initUI(self):
         self.setWindowTitle("Dreamer")
@@ -103,7 +106,10 @@ class MyApp(QMainWindow):
                 self.sd_request(self.prompt_input.text(), self.neg_prompt_input.text())
             elif message == b'SaveImage':
                 unique_id = str(uuid.uuid4())
-                self.current_pil_image.save(f'{unique_id}.png')
+                metadata = PngInfo()
+                # TODO Getting infotexts could get trickey when pulling mutiple images. Probably need to make a class
+                metadata.add_text("parameters", f'{self.current_info["infotexts"][0]}')
+                self.current_pil_image.save(f'{unique_id}.png', pnginfo=metadata)
         except queue.Empty:
             pass
 
@@ -118,11 +124,12 @@ class MyApp(QMainWindow):
                 output = control_net.send_request()
 
                 result = output['images'][0]
-                print(f'Parameters: {output["parameters"]}')
-                print(f'Info: {output["info"]}')
+                # print(f'Parameters: {output["parameters"]}')
+                # print(f'Info: {output["info"]}')
+                
                 
                 # TODO: Find a better way to translate results to QPixmap without saving file
-
+                self.current_info = json.loads(output["info"])
                 self.current_pil_image = Image.open(io.BytesIO(base64.b64decode(result.split(",", 1)[0])))
                 unique_id = str(uuid.uuid4())
                 self.current_pil_image.save(f'{temp_dir}/{unique_id}.png')
